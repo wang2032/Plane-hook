@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  plane-webhook:
+    build: .
+    container_name: plane-webhook
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - plane-network
+
+networks:
+  plane-network:
+    driver: bridge
