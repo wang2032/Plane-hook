@@ -66,10 +66,14 @@ const handleIssueEvent = async (action, data, activity) => {
     
     const fieldName = fieldMap[activity?.field] || activity?.field;
     
+    // 格式化变更值
+    const changeDetail = formatChangeDetail(activity?.field, activity?.old_value, activity?.new_value, data);
+    
     content = `### ✏️ 更新 Issue\n` +
               `> **标题**: <font color="info">${data.name}</font>\n` +
               `> **序列号**: #${data.sequence_id}\n` +
               `> **变更字段**: <font color="warning">${fieldName}</font>\n` +
+              changeDetail +
               `> **当前状态**: <font color="comment">${data.state?.name}</font>\n` +
               `> **优先级**: ${getPriorityText(data.priority)}\n` +
               `> **操作者**: ${activity?.actor?.display_name || '未知'}\n\n` +
@@ -118,6 +122,52 @@ const getPriorityText = (priority) => {
     'none': '<font color="comment">无</font>'
   };
   return priorityMap[priority] || priority;
+};
+
+// 格式化变更详情
+const formatChangeDetail = (field, oldValue, newValue, data) => {
+  // 如果是描述类字段，显示简化信息
+  if (field === 'description_html' || field === 'description_stripped' || field === 'description') {
+    const oldText = oldValue === '<p></p>' || !oldValue ? '空' : '已有内容';
+    const newText = data.description_stripped || '空';
+    return `> **变更**: ${oldText} → ${newText.substring(0, 20)}${newText.length > 20 ? '...' : ''}\n`;
+  }
+  
+  // 日期字段
+  if (field === 'start_date' || field === 'target_date') {
+    const oldDate = oldValue ? oldValue : '未设置';
+    const newDate = newValue ? newValue : '未设置';
+    return `> **变更**: ${oldDate} → ${newDate}\n`;
+  }
+  
+  // 优先级字段
+  if (field === 'priority') {
+    const priorityMap = {
+      'urgent': '紧急',
+      'high': '高',
+      'medium': '中',
+      'low': '低',
+      'none': '无'
+    };
+    const oldPriority = priorityMap[oldValue] || oldValue || '未设置';
+    const newPriority = priorityMap[newValue] || newValue || '未设置';
+    return `> **变更**: ${oldPriority} → ${newPriority}\n`;
+  }
+  
+  // 状态字段
+  if (field === 'state_id') {
+    // 状态变更已经在"当前状态"中显示，这里可以简化
+    return '';
+  }
+  
+  // 其他字段
+  if (oldValue || newValue) {
+    const old = oldValue || '空';
+    const newVal = newValue || '空';
+    return `> **变更**: ${old} → ${newVal}\n`;
+  }
+  
+  return '';
 };
 
 module.exports = {
