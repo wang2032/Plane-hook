@@ -1,5 +1,7 @@
 const wecomService = require('./wecomService');
 
+const PLANE_URL = 'https://plane.10rig.com:8443';
+
 // 处理接收到的消息
 const handleMessage = async (message) => {
   console.log('收到消息:', JSON.stringify(message, null, 2));
@@ -33,17 +35,17 @@ const handleMessage = async (message) => {
 
 // 处理 Issue 事件
 const handleIssueEvent = async (action, data, activity) => {
-  let message = '';
-  let mentionAll = false; // 是否 @所有人
+  let content = '';
+  let mentionAll = false;
   
   if (action === 'created') {
-    message = `📝 新建 Issue\n` +
-              `标题: ${data.name}\n` +
-              `状态: ${data.state?.name}\n` +
-              `优先级: ${data.priority}\n` +
-              `序列号: #${data.sequence_id}\n` +
-              `创建者: ${activity?.actor?.display_name || '未知'}`;
-    // 新建 Issue 时 @所有人
+    content = `### 📝 新建 Issue\n` +
+              `> **标题**: <font color="info">${data.name}</font>\n` +
+              `> **状态**: <font color="comment">${data.state?.name}</font>\n` +
+              `> **优先级**: ${getPriorityText(data.priority)}\n` +
+              `> **序列号**: #${data.sequence_id}\n` +
+              `> **创建者**: ${activity?.actor?.display_name || '未知'}\n\n` +
+              `[查看详情](${PLANE_URL})`;
     mentionAll = true;
   } else if (action === 'updated') {
     const fieldMap = {
@@ -56,40 +58,57 @@ const handleIssueEvent = async (action, data, activity) => {
     
     const fieldName = fieldMap[activity?.field] || activity?.field;
     
-    message = `✏️ 更新 Issue\n` +
-              `标题: ${data.name}\n` +
-              `序列号: #${data.sequence_id}\n` +
-              `变更字段: ${fieldName}\n` +
-              `当前状态: ${data.state?.name}\n` +
-              `操作者: ${activity?.actor?.display_name || '未知'}`;
+    content = `### ✏️ 更新 Issue\n` +
+              `> **标题**: <font color="info">${data.name}</font>\n` +
+              `> **序列号**: #${data.sequence_id}\n` +
+              `> **变更字段**: <font color="warning">${fieldName}</font>\n` +
+              `> **当前状态**: <font color="comment">${data.state?.name}</font>\n` +
+              `> **操作者**: ${activity?.actor?.display_name || '未知'}\n\n` +
+              `[查看详情](${PLANE_URL})`;
   } else if (action === 'deleted') {
-    message = `🗑️ 删除 Issue\n` +
-              `标题: ${data.name}\n` +
-              `序列号: #${data.sequence_id}\n` +
-              `操作者: ${activity?.actor?.display_name || '未知'}`;
+    content = `### 🗑️ 删除 Issue\n` +
+              `> **标题**: <font color="info">${data.name}</font>\n` +
+              `> **序列号**: #${data.sequence_id}\n` +
+              `> **操作者**: ${activity?.actor?.display_name || '未知'}\n\n` +
+              `[查看详情](${PLANE_URL})`;
   }
   
   // 发送到企业微信
-  if (message) {
+  if (content) {
     const mentionedList = mentionAll ? ['@all'] : [];
-    await wecomService.sendTextMessage(message, mentionedList);
+    await wecomService.sendMarkdownMessage(content, mentionedList);
   }
 };
 
 // 处理 Issue Comment 事件
 const handleIssueCommentEvent = async (action, data, activity) => {
-  const message = `💬 Issue 评论 ${action === 'created' ? '新增' : '更新'}\n` +
-                  `操作者: ${activity?.actor?.display_name || '未知'}`;
+  const content = `### 💬 Issue 评论 ${action === 'created' ? '新增' : '更新'}\n` +
+                  `> **操作者**: ${activity?.actor?.display_name || '未知'}\n\n` +
+                  `[查看详情](${PLANE_URL})`;
   
-  await wecomService.sendTextMessage(message);
+  await wecomService.sendMarkdownMessage(content);
 };
 
 // 处理 Project 事件
 const handleProjectEvent = async (action, data, activity) => {
-  const message = `� 项目 ${action === 'created' ? '创建' : action === 'updated' ? '更新' : '删除'}\n` +
-                  `操作者: ${activity?.actor?.display_name || '未知'}`;
+  const actionText = action === 'created' ? '创建' : action === 'updated' ? '更新' : '删除';
+  const content = `### 📁 项目 ${actionText}\n` +
+                  `> **操作者**: ${activity?.actor?.display_name || '未知'}\n\n` +
+                  `[查看详情](${PLANE_URL})`;
   
-  await wecomService.sendTextMessage(message);
+  await wecomService.sendMarkdownMessage(content);
+};
+
+// 获取优先级文本（带颜色）
+const getPriorityText = (priority) => {
+  const priorityMap = {
+    'urgent': '<font color="warning">紧急</font>',
+    'high': '<font color="warning">高</font>',
+    'medium': '<font color="comment">中</font>',
+    'low': '<font color="comment">低</font>',
+    'none': '<font color="comment">无</font>'
+  };
+  return priorityMap[priority] || priority;
 };
 
 module.exports = {

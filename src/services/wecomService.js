@@ -41,17 +41,24 @@ const sendTextMessage = async (content, mentionedList = [], mentionedMobileList 
 };
 
 // 发送 Markdown 消息到企业微信
-const sendMarkdownMessage = async (content) => {
+const sendMarkdownMessage = async (content, mentionedList = []) => {
   if (!WECOM_WEBHOOK_URL) {
     console.error('企业微信 Webhook URL 未配置');
     return false;
   }
 
   try {
+    // 如果需要 @提醒，在内容末尾添加
+    let finalContent = content;
+    if (mentionedList.length > 0) {
+      const mentions = mentionedList.map(user => `<@${user}>`).join(' ');
+      finalContent = `${content}\n\n${mentions}`;
+    }
+
     const response = await axios.post(WECOM_WEBHOOK_URL, {
       msgtype: 'markdown',
       markdown: {
-        content
+        content: finalContent
       }
     });
 
