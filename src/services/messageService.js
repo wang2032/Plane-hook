@@ -53,7 +53,15 @@ const handleIssueEvent = async (action, data, activity) => {
       'priority': '优先级',
       'name': '标题',
       'assignees': '负责人',
-      'labels': '标签'
+      'labels': '标签',
+      'description': '描述',
+      'description_html': '描述',
+      'description_stripped': '描述',
+      'target_date': '截止日期',
+      'start_date': '开始日期',
+      'estimate_point': '预估工时',
+      'parent': '父任务',
+      'archived_at': '归档状态'
     };
     
     const fieldName = fieldMap[activity?.field] || activity?.field;
@@ -63,6 +71,7 @@ const handleIssueEvent = async (action, data, activity) => {
               `> **序列号**: #${data.sequence_id}\n` +
               `> **变更字段**: <font color="warning">${fieldName}</font>\n` +
               `> **当前状态**: <font color="comment">${data.state?.name}</font>\n` +
+              `> **优先级**: ${getPriorityText(data.priority)}\n` +
               `> **操作者**: ${activity?.actor?.display_name || '未知'}\n\n` +
               `[查看详情](${PLANE_URL})`;
   } else if (action === 'deleted') {
