@@ -7,10 +7,8 @@ services:
     restart: unless-stopped
     ports:
       - "5000:3000"
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - WECOM_WEBHOOK_URL=${WECOM_WEBHOOK_URL}
+    env_file:
+      - .env
     volumes:
       - ./logs:/app/logs
     networks:
