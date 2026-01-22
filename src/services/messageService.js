@@ -53,6 +53,7 @@ const handleIssueEvent = async (action, data, activity) => {
       'priority': '优先级',
       'name': '标题',
       'assignees': '负责人',
+      'assignee_ids': '负责人',
       'labels': '标签',
       'description': '描述',
       'description_html': '描述',
@@ -69,6 +70,20 @@ const handleIssueEvent = async (action, data, activity) => {
     // 格式化变更值
     const changeDetail = formatChangeDetail(activity?.field, activity?.old_value, activity?.new_value, data);
     
+    // 检查是否需要 @负责人
+    let mentionedList = [];
+    if (activity?.field === 'assignee_ids' && data.assignees && data.assignees.length > 0) {
+      // 提取新增的负责人（用于 @提醒）
+      const newAssigneeIds = Array.isArray(activity?.new_value) ? activity.new_value : [];
+      const oldAssigneeIds = Array.isArray(activity?.old_value) ? activity.old_value : [];
+      const addedAssigneeIds = newAssigneeIds.filter(id => !oldAssigneeIds.includes(id));
+      
+      // 使用负责人的 display_name 进行 @提醒
+      mentionedList = data.assignees
+        .filter(assignee => addedAssigneeIds.includes(assignee.id))
+        .map(assignee => assignee.display_name);
+    }
+    
     content = `### ✏️ 更新 Issue\n` +
               `> **标题**: <font color="info">${data.name}</font>\n` +
               `> **序列号**: #${data.sequence_id}\n` +
@@ -78,6 +93,12 @@ const handleIssueEvent = async (action, data, activity) => {
               `> **优先级**: ${getPriorityText(data.priority)}\n` +
               `> **操作者**: ${activity?.actor?.display_name || '未知'}\n\n` +
               `[查看详情](${PLANE_URL})`;
+    
+    // 发送消息并 @负责人
+    if (content) {
+      await wecomService.sendMarkdownMessage(content, mentionedList);
+    }
+    return; // 提前返回，避免重复发送
   } else if (action === 'deleted') {
     content = `### 🗑️ 删除 Issue\n` +
               `> **标题**: <font color="info">${data.name}</font>\n` +
@@ -131,6 +152,15 @@ const formatChangeDetail = (field, oldValue, newValue, data) => {
     const oldText = oldValue === '<p></p>' || !oldValue ? '空' : '已有内容';
     const newText = data.description_stripped || '空';
     return `> **变更**: ${oldText} → ${newText.substring(0, 20)}${newText.length > 20 ? '...' : ''}\n`;
+  }
+  
+  // 负责人字段
+  if (field === 'assignee_ids' || field === 'assignees') {
+    const oldAssignees = Array.isArray(oldValue) && oldValue.length > 0 ? '已有负责人' : '无';
+    const newAssignees = data.assignees && data.assignees.length > 0 
+      ? data.assignees.map(a => a.display_name).join(', ') 
+      : '无';
+    return `> **变更**: ${oldAssignees} → ${newAssignees}\n`;
   }
   
   // 日期字段
