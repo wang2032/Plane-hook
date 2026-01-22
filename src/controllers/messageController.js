@@ -4,7 +4,7 @@ const messageService = require('../services/messageService');
 const receiveMessage = async (req, res) => {
   try {
     const message = req.body;
-    console.log(message,);
+    // console.log(message,);
     
     const result = await messageService.handleMessage(message);
     res.json({ success: true, data: result });
