@@ -3,7 +3,7 @@ const wecomService = require('../wecomService');
 const PLANE_URL = 'https://plane.10rig.com:8443';
 
 // 处理 Issue 事件
-const handleIssueEvent = async (action, data, activity) => {
+const handleIssueEvent = async (action, data, activity, webhookUrl = null) => {
   let content = '';
   let mentionAll = false;
   
@@ -65,7 +65,7 @@ const handleIssueEvent = async (action, data, activity) => {
     
     // 发送消息并 @负责人
     if (content) {
-      await wecomService.sendMarkdownMessage(content, mentionedList);
+      await wecomService.sendMarkdownMessage(content, mentionedList, webhookUrl);
     }
     return; // 提前返回，避免重复发送
   } else if (action === 'deleted') {
@@ -79,7 +79,7 @@ const handleIssueEvent = async (action, data, activity) => {
   // 发送到企业微信
   if (content) {
     const mentionedList = mentionAll ? ['@all'] : [];
-    await wecomService.sendMarkdownMessage(content, mentionedList);
+    await wecomService.sendMarkdownMessage(content, mentionedList, webhookUrl);
   }
 };
 

@@ -1,10 +1,11 @@
 const axios = require('axios');
 
 const WECOM_WEBHOOK_URL = process.env.WECOM_WEBHOOK_URL;
+const WECOM_WEBHOOK_URL_BUS = process.env.WECOM_WEBHOOK_URL_BUS;
 
 // 发送文本消息到企业微信
-const sendTextMessage = async (content, mentionedList = [], mentionedMobileList = []) => {
-  if (!WECOM_WEBHOOK_URL) {
+const sendTextMessage = async (content, mentionedList = [], mentionedMobileList = [], webhookUrl = WECOM_WEBHOOK_URL) => {
+  if (!webhookUrl) {
     console.error('企业微信 Webhook URL 未配置');
     return false;
   }
@@ -25,7 +26,7 @@ const sendTextMessage = async (content, mentionedList = [], mentionedMobileList 
       payload.text.mentioned_mobile_list = mentionedMobileList;
     }
 
-    const response = await axios.post(WECOM_WEBHOOK_URL, payload);
+    const response = await axios.post(webhookUrl, payload);
 
     if (response.data.errcode === 0) {
       console.log('企业微信消息发送成功');
@@ -41,8 +42,8 @@ const sendTextMessage = async (content, mentionedList = [], mentionedMobileList 
 };
 
 // 发送 Markdown 消息到企业微信
-const sendMarkdownMessage = async (content, mentionedList = []) => {
-  if (!WECOM_WEBHOOK_URL) {
+const sendMarkdownMessage = async (content, mentionedList = [], webhookUrl = WECOM_WEBHOOK_URL) => {
+  if (!webhookUrl) {
     console.error('企业微信 Webhook URL 未配置');
     return false;
   }
@@ -55,7 +56,7 @@ const sendMarkdownMessage = async (content, mentionedList = []) => {
       finalContent = `${content}\n\n${mentions}`;
     }
 
-    const response = await axios.post(WECOM_WEBHOOK_URL, {
+    const response = await axios.post(webhookUrl, {
       msgtype: 'markdown',
       markdown: {
         content: finalContent
@@ -77,5 +78,6 @@ const sendMarkdownMessage = async (content, mentionedList = []) => {
 
 module.exports = {
   sendTextMessage,
-  sendMarkdownMessage
+  sendMarkdownMessage,
+  WECOM_WEBHOOK_URL_BUS
 };

@@ -13,6 +13,19 @@ const receiveMessage = async (req, res) => {
   }
 };
 
+// 接收业务部消息钩子
+const receiveBusMessage = async (req, res) => {
+  try {
+    const message = req.body;
+    
+    const result = await messageService.handleBusMessage(message);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
-  receiveMessage
+  receiveMessage,
+  receiveBusMessage
 };

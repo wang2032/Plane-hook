@@ -3,7 +3,7 @@ const wecomService = require('../wecomService');
 const PLANE_URL = 'https://plane.10rig.com:8443';
 
 // 处理 Project 事件
-const handleProjectEvent = async (action, data, activity) => {
+const handleProjectEvent = async (action, data, activity, webhookUrl = null) => {
   let content = '';
   
   if (action === 'created') {
@@ -28,7 +28,7 @@ const handleProjectEvent = async (action, data, activity) => {
   }
   
   if (content) {
-    await wecomService.sendMarkdownMessage(content);
+    await wecomService.sendMarkdownMessage(content, [], webhookUrl);
   }
 };
 

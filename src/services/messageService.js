@@ -3,7 +3,7 @@ const { handleProjectEvent } = require('./handlers/projectHandler');
 const { handleIssueCommentEvent } = require('./handlers/commentHandler');
 
 // 处理接收到的消息
-const handleMessage = async (message) => {
+const handleMessage = async (message, webhookUrl = null) => {
   console.log('收到消息:', JSON.stringify(message, null, 2));
   
   const { event, action, webhook_id, workspace_id, data, activity } = message;
@@ -11,13 +11,13 @@ const handleMessage = async (message) => {
   // 根据事件类型处理
   switch (event) {
     case 'issue':
-      await handleIssueEvent(action, data, activity);
+      await handleIssueEvent(action, data, activity, webhookUrl);
       break;
     case 'issue_comment':
-      await handleIssueCommentEvent(action, data, activity);
+      await handleIssueCommentEvent(action, data, activity, webhookUrl);
       break;
     case 'project':
-      await handleProjectEvent(action, data, activity);
+      await handleProjectEvent(action, data, activity, webhookUrl);
       break;
     default:
       console.log(`未处理的事件类型: ${event}`);
@@ -33,6 +33,13 @@ const handleMessage = async (message) => {
   };
 };
 
+// 处理业务部消息
+const handleBusMessage = async (message) => {
+  const { WECOM_WEBHOOK_URL_BUS } = require('./wecomService');
+  return await handleMessage(message, WECOM_WEBHOOK_URL_BUS);
+};
+
 module.exports = {
-  handleMessage
+  handleMessage,
+  handleBusMessage
 };

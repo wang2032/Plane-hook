@@ -6,6 +6,6 @@ const messageController = require('../controllers/messageController');
 router.post('/message-hook', messageController.receiveMessage);
 
 //业务部消息回调
-router.post('/message-bushook', messageController.receiveMessage);
+router.post('/message-bushook', messageController.receiveBusMessage);
 
 module.exports = router;
