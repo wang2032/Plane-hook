@@ -50,6 +50,7 @@ const sendTextMessage = async (content, mentionedList = [], mentionedMobileList 
 
 // 发送 Markdown 消息到企业微信
 const sendMarkdownMessage = async (content, mentionedList = [], webhookUrl = WECOM_WEBHOOK_URL) => {
+  console.log('sendMarkdownMessage 调用参数:', { webhookUrl, defaultUrl: WECOM_WEBHOOK_URL });
   if (!webhookUrl) {
     console.error('企业微信 Webhook URL 未配置');
     return false;

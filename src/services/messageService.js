@@ -1,9 +1,10 @@
 const { handleIssueEvent } = require('./handlers/issueHandler');
 const { handleProjectEvent } = require('./handlers/projectHandler');
 const { handleIssueCommentEvent } = require('./handlers/commentHandler');
+const { WECOM_WEBHOOK_URL_BUS } = require('./wecomService');
 
 // 处理接收到的消息
-const handleMessage = async (message, webhookUrl = null) => {
+const handleMessage = async (message, webhookUrl = process.env.WECOM_WEBHOOK_URL) => {
   console.log('收到消息:', JSON.stringify(message, null, 2));
   
   const { event, action, webhook_id, workspace_id, data, activity } = message;
@@ -35,7 +36,6 @@ const handleMessage = async (message, webhookUrl = null) => {
 
 // 处理业务部消息
 const handleBusMessage = async (message) => {
-  const { WECOM_WEBHOOK_URL_BUS } = require('./wecomService');
   return await handleMessage(message, WECOM_WEBHOOK_URL_BUS);
 };
 
