@@ -3,9 +3,33 @@ const { handleProjectEvent } = require('./handlers/projectHandler');
 const { handleIssueCommentEvent } = require('./handlers/commentHandler');
 const { WECOM_WEBHOOK_URL_BUS } = require('./wecomService');
 
+// 获取项目对应的 webhook URL
+const getWebhookUrlByProject = (projectId) => {
+  try {
+    const mapping = JSON.parse(process.env.PROJECT_WEBHOOK_MAPPING || '{}');
+    return mapping[projectId] || process.env.WECOM_WEBHOOK_URL;
+  } catch (error) {
+    console.error('解析 PROJECT_WEBHOOK_MAPPING 失败:', error.message);
+    return process.env.WECOM_WEBHOOK_URL;
+  }
+};
+
 // 处理接收到的消息
-const handleMessage = async (message, webhookUrl = process.env.WECOM_WEBHOOK_URL) => {
+const handleMessage = async (message, webhookUrl = null) => {
   console.log('收到消息:', JSON.stringify(message, null, 2));
+  
+  const { event, action, webhook_id, workspace_id, data, activity } = message;
+  
+  // 如果没有指定 webhookUrl，根据项目 ID 自动选择
+  if (!webhookUrl && data && data.project) {
+    webhookUrl = getWebhookUrlByProject(data.project);
+    console.log(`项目 ${data.project} 使用 webhook:`, webhookUrl);
+  }
+  
+  // 如果还是没有，使用默认的
+  if (!webhookUrl) {
+    webhookUrl = process.env.WECOM_WEBHOOK_URL;
+  }
   
   const { event, action, webhook_id, workspace_id, data, activity } = message;
   
