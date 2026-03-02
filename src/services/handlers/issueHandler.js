@@ -6,40 +6,66 @@ const PLANE_URL = 'https://plane.10rig.com:8443';
 const DEBOUNCE_TIME = 30000; // 30秒
 const pendingNotifications = new Map(); // 存储待发送的通知
 
+// 需要忽略的字段（这些字段变更不通知）
+const IGNORED_FIELDS = new Set([
+  'sort_order',
+  'updated_at'
+]);
+
 // 防抖发送通知
-const debouncedSendNotification = (issueId, sendFunction) => {
-  // 如果已有待发送的通知，清除旧的定时器
-  if (pendingNotifications.has(issueId)) {
-    clearTimeout(pendingNotifications.get(issueId).timer);
-    console.log(`取消 Issue ${issueId} 的旧通知，重新计时`);
+const debouncedSendNotification = (issueId, latestData, latestActivity, webhookUrl) => {
+  // 忽略不重要的字段
+  if (IGNORED_FIELDS.has(latestActivity?.field)) {
+    console.log(`忽略字段变更: ${latestActivity?.field}`);
+    return;
+  }
+  
+  // 获取或创建该 Issue 的变更记录
+  let notification = pendingNotifications.get(issueId);
+  
+  if (notification) {
+    // 已有待发送的通知，清除旧定时器，累积变更
+    clearTimeout(notification.timer);
+    console.log(`取消 Issue ${issueId} 的旧通知，累积变更并重新计时`);
+    
+    // 累积变更记录（去重：同一字段只保留最新的）
+    const existingChangeIndex = notification.changes.findIndex(c => c.field === latestActivity?.field);
+    if (existingChangeIndex >= 0) {
+      // 更新已有字段的变更
+      notification.changes[existingChangeIndex] = {
+        field: latestActivity?.field,
+        oldValue: notification.changes[existingChangeIndex].oldValue, // 保留最初的旧值
+        newValue: latestActivity?.new_value, // 使用最新的新值
+        actor: latestActivity?.actor
+      };
+    } else {
+      // 新增字段变更
+      notification.changes.push({
+        field: latestActivity?.field,
+        oldValue: latestActivity?.old_value,
+        newValue: latestActivity?.new_value,
+        actor: latestActivity?.actor
+      });
+    }
+    notification.data = latestData; // 更新为最新数据
+  } else {
+    // 首次变更
+    notification = {
+      data: latestData,
+      changes: [{
+        field: latestActivity?.field,
+        oldValue: latestActivity?.old_value,
+        newValue: latestActivity?.new_value,
+        actor: latestActivity?.actor
+      }],
+      webhookUrl
+    };
   }
   
   // 创建新的定时器
-  const timer = setTimeout(async () => {
-    console.log(`30秒内无新更新，发送 Issue ${issueId} 的通知`);
-    await sendFunction();
-    pendingNotifications.delete(issueId);
-  }, DEBOUNCE_TIME);
-  
-  pendingNotifications.set(issueId, { timer, sendFunction });
-  console.log(`Issue ${issueId} 将在 30 秒后发送通知（如无新更新）`);
-};
-
-// 处理 Issue 事件
-const handleIssueEvent = async (action, data, activity, webhookUrl = null) => {
-  let content = '';
-  let mentionAll = false;
-  
-  if (action === 'created') {
-    content = `### 📝 新建 Issue\n` +
-              `> **标题**: <font color="info">${data.name}</font>\n` +
-              `> **状态**: <font color="comment">${data.state?.name}</font>\n` +
-              `> **优先级**: ${getPriorityText(data.priority)}\n` +
-              `> **序列号**: #${data.sequence_id}\n` +
-              `> **创建者**: ${activity?.actor?.display_name || '未知'}\n\n` +
-              `[查看详情](${PLANE_URL})`;
-    mentionAll = true;
-  } else if (action === 'updated') {
+  notification.timer = setTimeout(async () => {
+    console.log(`30秒内无新更新，发送 Issue ${issueId} 的通知，共 ${notification.changes.length} 个变更`);
+    
     const fieldMap = {
       'state_id': '状态',
       'priority': '优先级',
@@ -57,48 +83,62 @@ const handleIssueEvent = async (action, data, activity, webhookUrl = null) => {
       'archived_at': '归档状态'
     };
     
-    const fieldName = fieldMap[activity?.field] || activity?.field;
+    // 生成变更摘要
+    const changesSummary = notification.changes
+      .map(change => {
+        const fieldName = fieldMap[change.field] || change.field;
+        return `• ${fieldName}`;
+      })
+      .join('\n');
     
-    // 格式化变更值
-    const changeDetail = formatChangeDetail(activity?.field, activity?.old_value, activity?.new_value, data);
+    const lastChange = notification.changes[notification.changes.length - 1];
     
-    // 检查是否需要 @负责人
+    const content = `### ✏️ 更新 Issue\n` +
+              `> **标题**: <font color="info">${notification.data.name}</font>\n` +
+              `> **序列号**: #${notification.data.sequence_id}\n` +
+              `> **变更字段**:\n${changesSummary}\n` +
+              `> **当前状态**: <font color="comment">${notification.data.state?.name}</font>\n` +
+              `> **优先级**: ${getPriorityText(notification.data.priority)}\n` +
+              `> **操作者**: ${lastChange?.actor?.display_name || '未知'}\n\n` +
+              `[查看详情](${PLANE_URL})`;
+    
+    // 检查是否有负责人变更需要 @提醒
     let mentionedList = [];
-    if (activity?.field === 'assignee_ids' && data.assignees && data.assignees.length > 0) {
-      // 提取新增的负责人（用于 @提醒）
-      const newAssigneeIds = Array.isArray(activity?.new_value) ? activity.new_value : [];
-      const oldAssigneeIds = Array.isArray(activity?.old_value) ? activity.old_value : [];
+    const assigneeChange = notification.changes.find(c => c.field === 'assignee_ids');
+    if (assigneeChange && notification.data.assignees && notification.data.assignees.length > 0) {
+      const newAssigneeIds = Array.isArray(assigneeChange.newValue) ? assigneeChange.newValue : [];
+      const oldAssigneeIds = Array.isArray(assigneeChange.oldValue) ? assigneeChange.oldValue : [];
       const addedAssigneeIds = newAssigneeIds.filter(id => !oldAssigneeIds.includes(id));
-      
-      // 使用负责人的 display_name 进行 @提醒
-      mentionedList = data.assignees
+      mentionedList = notification.data.assignees
         .filter(assignee => addedAssigneeIds.includes(assignee.id))
         .map(assignee => assignee.display_name);
     }
     
-    content = `### ✏️ 更新 Issue\n` +
+    await wecomService.sendMarkdownMessage(content, mentionedList, notification.webhookUrl);
+    pendingNotifications.delete(issueId);
+  }, DEBOUNCE_TIME);
+  
+  pendingNotifications.set(issueId, notification);
+  console.log(`Issue ${issueId} 将在 30 秒后发送通知（如无新更新），当前累积 ${notification.changes.length} 个变更`);
+};
+
+// 处理 Issue 事件
+const handleIssueEvent = async (action, data, activity, webhookUrl = null) => {
+  let content = '';
+  let mentionAll = false;
+  
+  if (action === 'created') {
+    content = `### 📝 新建 Issue\n` +
               `> **标题**: <font color="info">${data.name}</font>\n` +
-              `> **序列号**: #${data.sequence_id}\n` +
-              `> **变更字段**: <font color="warning">${fieldName}</font>\n` +
-              changeDetail +
-              `> **当前状态**: <font color="comment">${data.state?.name}</font>\n` +
+              `> **状态**: <font color="comment">${data.state?.name}</font>\n` +
               `> **优先级**: ${getPriorityText(data.priority)}\n` +
-              `> **操作者**: ${activity?.actor?.display_name || '未知'}\n\n` +
+              `> **序列号**: #${data.sequence_id}\n` +
+              `> **创建者**: ${activity?.actor?.display_name || '未知'}\n\n` +
               `[查看详情](${PLANE_URL})`;
-    
-    // 使用防抖发送消息
-    debouncedSendNotification(data.id, async () => {
-      const mentionedList = [];
-      if (activity?.field === 'assignee_ids' && data.assignees && data.assignees.length > 0) {
-        const newAssigneeIds = Array.isArray(activity?.new_value) ? activity.new_value : [];
-        const oldAssigneeIds = Array.isArray(activity?.old_value) ? activity.old_value : [];
-        const addedAssigneeIds = newAssigneeIds.filter(id => !oldAssigneeIds.includes(id));
-        mentionedList.push(...data.assignees
-          .filter(assignee => addedAssigneeIds.includes(assignee.id))
-          .map(assignee => assignee.display_name));
-      }
-      await wecomService.sendMarkdownMessage(content, mentionedList, webhookUrl);
-    });
+    mentionAll = true;
+  } else if (action === 'updated') {
+    // 使用防抖发送消息（保存最新的数据）
+    debouncedSendNotification(data.id, data, activity, webhookUrl);
     return; // 提前返回，避免重复发送
   } else if (action === 'deleted') {
     content = `### 🗑️ 删除 Issue\n` +
