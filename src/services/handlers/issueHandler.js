@@ -2,6 +2,29 @@ const wecomService = require('../wecomService');
 
 const PLANE_URL = 'https://plane.10rig.com:8443';
 
+// 防抖配置
+const DEBOUNCE_TIME = 30000; // 30秒
+const pendingNotifications = new Map(); // 存储待发送的通知
+
+// 防抖发送通知
+const debouncedSendNotification = (issueId, sendFunction) => {
+  // 如果已有待发送的通知，清除旧的定时器
+  if (pendingNotifications.has(issueId)) {
+    clearTimeout(pendingNotifications.get(issueId).timer);
+    console.log(`取消 Issue ${issueId} 的旧通知，重新计时`);
+  }
+  
+  // 创建新的定时器
+  const timer = setTimeout(async () => {
+    console.log(`30秒内无新更新，发送 Issue ${issueId} 的通知`);
+    await sendFunction();
+    pendingNotifications.delete(issueId);
+  }, DEBOUNCE_TIME);
+  
+  pendingNotifications.set(issueId, { timer, sendFunction });
+  console.log(`Issue ${issueId} 将在 30 秒后发送通知（如无新更新）`);
+};
+
 // 处理 Issue 事件
 const handleIssueEvent = async (action, data, activity, webhookUrl = null) => {
   let content = '';
@@ -63,10 +86,19 @@ const handleIssueEvent = async (action, data, activity, webhookUrl = null) => {
               `> **操作者**: ${activity?.actor?.display_name || '未知'}\n\n` +
               `[查看详情](${PLANE_URL})`;
     
-    // 发送消息并 @负责人
-    if (content) {
+    // 使用防抖发送消息
+    debouncedSendNotification(data.id, async () => {
+      const mentionedList = [];
+      if (activity?.field === 'assignee_ids' && data.assignees && data.assignees.length > 0) {
+        const newAssigneeIds = Array.isArray(activity?.new_value) ? activity.new_value : [];
+        const oldAssigneeIds = Array.isArray(activity?.old_value) ? activity.old_value : [];
+        const addedAssigneeIds = newAssigneeIds.filter(id => !oldAssigneeIds.includes(id));
+        mentionedList.push(...data.assignees
+          .filter(assignee => addedAssigneeIds.includes(assignee.id))
+          .map(assignee => assignee.display_name));
+      }
       await wecomService.sendMarkdownMessage(content, mentionedList, webhookUrl);
-    }
+    });
     return; // 提前返回，避免重复发送
   } else if (action === 'deleted') {
     content = `### 🗑️ 删除 Issue\n` +
