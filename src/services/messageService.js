@@ -6,8 +6,13 @@ const { WECOM_WEBHOOK_URL_BUS } = require('./wecomService');
 // 获取项目对应的 webhook URL
 const getWebhookUrlByProject = (projectId) => {
   try {
+    console.log('PROJECT_WEBHOOK_MAPPING 原始值:', process.env.PROJECT_WEBHOOK_MAPPING);
     const mapping = JSON.parse(process.env.PROJECT_WEBHOOK_MAPPING || '{}');
-    return mapping[projectId] || process.env.WECOM_WEBHOOK_URL;
+    console.log('解析后的映射:', mapping);
+    console.log('查找项目:', projectId);
+    const url = mapping[projectId] || process.env.WECOM_WEBHOOK_URL;
+    console.log('返回 URL:', url);
+    return url;
   } catch (error) {
     console.error('解析 PROJECT_WEBHOOK_MAPPING 失败:', error.message);
     return process.env.WECOM_WEBHOOK_URL;
@@ -58,7 +63,8 @@ const handleMessage = async (message, webhookUrl = null) => {
 
 // 处理业务部消息
 const handleBusMessage = async (message) => {
-  return await handleMessage(message, WECOM_WEBHOOK_URL_BUS);
+  // 也使用项目映射，如果找不到才用 WECOM_WEBHOOK_URL_BUS
+  return await handleMessage(message);
 };
 
 module.exports = {
