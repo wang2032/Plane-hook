@@ -31,8 +31,6 @@ const handleMessage = async (message, webhookUrl = null) => {
     webhookUrl = process.env.WECOM_WEBHOOK_URL;
   }
   
-  const { event, action, webhook_id, workspace_id, data, activity } = message;
-  
   // 根据事件类型处理
   switch (event) {
     case 'issue':
